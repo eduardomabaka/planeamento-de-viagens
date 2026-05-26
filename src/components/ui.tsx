@@ -167,7 +167,7 @@ export function ConfirmDialog({
 
 // Stat card redesigned
 export function StatCard({ icon, label, value, trend, color = 'var(--color-blue)', accent }: {
-  icon: ReactNode; label: string; value: string | number; trend?: string; color?: string; accent?: string;
+  icon: ReactNode; label: string; value: ReactNode; trend?: string; color?: string; accent?: string;
 }) {
   return (
     <div className="card fade-in" style={{
@@ -192,7 +192,17 @@ export function StatCard({ icon, label, value, trend, color = 'var(--color-blue)
       }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500, letterSpacing: '0.02em', textTransform: 'uppercase' }}>{label}</div>
-        <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em', marginTop: 2 }}>{value}</div>
+        <div style={{
+          fontSize: 28,
+          fontWeight: 800,
+          lineHeight: 1.2,
+          letterSpacing: '-0.02em',
+          marginTop: 2,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>{value}</div>
         {trend && <div style={{ fontSize: 12, color: 'var(--color-success)', marginTop: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
           <Icon.TrendUp size={12}/> {trend}
         </div>}

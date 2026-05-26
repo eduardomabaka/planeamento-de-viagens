@@ -8,7 +8,7 @@ import {
 } from '../api';
 import type { Trip, TripMember, TripTask, TripExpense, TripDocument, TripVote, Message, User, DiaryEntry } from '../types';
 import { Icon, Modal, ConfirmDialog } from '../components/ui';
-import { APP_CURRENCY_CODE, APP_CURRENCY_SYMBOL, formatAOA, formatAOACompact } from '../utils/currency';
+import { APP_CURRENCY_CODE, APP_CURRENCY_SYMBOL, formatAOAFull, formatAOACompact, formatarOrcamento } from '../utils/currency';
 
 type Tab = 'overview' | 'members' | 'chat' | 'tasks' | 'expenses' | 'documents' | 'votes' | 'diary';
 
@@ -109,7 +109,7 @@ export function TripDetail() {
               <div style={{ display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap', opacity: 0.85 }}>
                 <span>📅 {new Date(trip.data_partida).toLocaleDateString('pt-PT')} → {new Date(trip.data_regresso).toLocaleDateString('pt-PT')}</span>
                 <span>👥 {members.length} membro(s)</span>
-                <span>💰 {formatAOA(trip.orcamento_total)}</span>
+                <span title={formatAOAFull(trip.orcamento_total)}>💰 {formatarOrcamento(trip.orcamento_total)}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -202,10 +202,15 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
           <Icon.Dollar size={18}/>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Orçamento</span>
         </div>
-        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatAOACompact(trip.orcamento_total)}</div>
+        <div
+          title={formatAOAFull(trip.orcamento_total)}
+          style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >{formatAOACompact(trip.orcamento_total)}</div>
         <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>Para {trip.num_viajantes} viajante(s)</div>
         <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, backdropFilter: 'blur(10px)' }}>
-          ≈ {formatAOACompact(trip.orcamento_total / Math.max(trip.num_viajantes, 1))} por pessoa
+          <span title={formatAOAFull(trip.orcamento_total / Math.max(trip.num_viajantes, 1))}>
+            ≈ {formatAOACompact(trip.orcamento_total / Math.max(trip.num_viajantes, 1))} por pessoa
+          </span>
         </div>
       </div>
 
@@ -650,7 +655,7 @@ function ExpensesTab({ trip, onTripUpdated }: { trip: Trip; onTripUpdated: (trip
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Total gasto</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)' }}>{formatAOA(total)}</div>
+          <div title={formatAOAFull(total)} style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatarOrcamento(total)}</div>
         </div>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -659,11 +664,11 @@ function ExpensesTab({ trip, onTripUpdated }: { trip: Trip; onTripUpdated: (trip
               <Icon.Edit size={13}/> Editar orçamento
             </button>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{formatAOA(trip.orcamento_total)}</div>
+          <div title={formatAOAFull(trip.orcamento_total)} style={{ fontSize: 22, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatarOrcamento(trip.orcamento_total)}</div>
         </div>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Por pessoa</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-blue)' }}>{formatAOA(perPerson)}</div>
+          <div title={formatAOAFull(perPerson)} style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-blue)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatarOrcamento(perPerson)}</div>
         </div>
       </div>
 
@@ -681,7 +686,7 @@ function ExpensesTab({ trip, onTripUpdated }: { trip: Trip; onTripUpdated: (trip
       {Object.keys(byCat).length > 0 && (
         <div style={{ marginBottom: 16, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {Object.entries(byCat).map(([cat, v]) => (
-            <span key={cat} className="chip chip-blue">{cat}: {formatAOA(v)}</span>
+            <span key={cat} className="chip chip-blue" title={formatAOAFull(v)}>{cat}: {formatarOrcamento(v)}</span>
           ))}
         </div>
       )}
@@ -693,7 +698,7 @@ function ExpensesTab({ trip, onTripUpdated }: { trip: Trip; onTripUpdated: (trip
               <div style={{ fontWeight: 600 }}>{e.descricao}</div>
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{e.categoria} · {e.user?.nome} · {e.data}</div>
             </div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-primary)' }}>{formatAOA(e.valor)}</div>
+            <div title={formatAOAFull(e.valor)} style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>{formatarOrcamento(e.valor)}</div>
             <button onClick={() => setDeleteExpenseId(e.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
           </div>
         ))}

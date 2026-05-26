@@ -4,7 +4,7 @@ import { useApp } from '../context';
 import { tripsApi, tasksApi, documentsApi } from '../api';
 import type { Trip, TripTask, TripDocument } from '../types';
 import { Icon, StatCard, EmptyState, PageHeader } from '../components/ui';
-import { formatAOA } from '../utils/currency';
+import { formatAOAFull, formatarOrcamento } from '../utils/currency';
 
 export function UserDashboard() {
   const { user, unreadCount } = useApp();
@@ -57,7 +57,13 @@ export function UserDashboard() {
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18, marginBottom: 24 }}>
         <StatCard icon={<Icon.Plane size={24}/>} label="Viagens planeadas" value={planeadas} color="#FF6700" accent="radial-gradient(circle, rgba(255,103,0,0.3), transparent)"/>
-        <StatCard icon={<Icon.Dollar size={24}/>} label="Orçamento total" value={formatAOA(totalBudget)} color="#3A6EA5" accent="radial-gradient(circle, rgba(58,110,165,0.3), transparent)"/>
+        <StatCard
+          icon={<Icon.Dollar size={24}/>}
+          label="Orçamento total"
+          value={<span title={formatAOAFull(totalBudget)}>{formatarOrcamento(totalBudget)}</span>}
+          color="#3A6EA5"
+          accent="radial-gradient(circle, rgba(58,110,165,0.3), transparent)"
+        />
         <StatCard icon={<Icon.List size={24}/>} label="Tarefas pendentes" value={pendingTasks.length} color="#06B6D4" accent="radial-gradient(circle, rgba(6,182,212,0.3), transparent)"/>
         <StatCard icon={<Icon.File size={24}/>} label="Docs por tratar" value={pendingDocs.length} color="#F59E0B" accent="radial-gradient(circle, rgba(245,158,11,0.3), transparent)"/>
       </div>

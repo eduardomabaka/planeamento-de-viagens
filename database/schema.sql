@@ -44,7 +44,7 @@ CREATE TABLE trips (
   data_regresso DATE NOT NULL,
   num_viajantes INT NOT NULL DEFAULT 1,
   tipo ENUM('lazer', 'negocios', 'aventura') NOT NULL,
-  orcamento_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  orcamento_total DECIMAL(18,2) NOT NULL DEFAULT 0,
   status ENUM('planeamento', 'ativa', 'concluida', 'cancelada') DEFAULT 'planeamento',
   destino_info JSON DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -87,7 +87,7 @@ CREATE TABLE trip_expenses (
   user_id INT NOT NULL,
   categoria VARCHAR(100) NOT NULL,
   descricao VARCHAR(255) NOT NULL,
-  valor DECIMAL(10,2) NOT NULL,
+  valor DECIMAL(18,2) NOT NULL,
   data DATE NOT NULL,
   FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -185,8 +185,8 @@ CREATE TABLE destination_cache (
 
 -- Admin padrão (password: admin123 - bcrypt hash)
 INSERT INTO users (nome, email, password, role, avatar, bio) VALUES
-('Admin Geral', 'admin@tripplanner.com', '$2y$10$YourHashHere', 'admin', '👑', 'Administrador da plataforma'),
-('Ana Silva', 'ana@demo.com', '$2y$10$YourHashHere', 'user', '👩', 'Apaixonada por viagens');
+('Admin Geral', 'admin@tripplanner.com', '$2y$10$PCp03G2O8PDotqu7BeF1buslCqn5hQWYG/YVp34muJReWIyPsl4VO', 'admin', '👑', 'Administrador da plataforma'),
+('Ana Silva', 'ana@demo.com', '$2y$10$I5S0K0jfIBZSirvbFsCLseDgmUwX2UUf1tQI6egpHfrFGXDPa2vMq', 'user', '👩', 'Apaixonada por viagens');
 
 -- Para gerar hashes PHP corretos, use:
 -- echo password_hash('admin123', PASSWORD_BCRYPT);
