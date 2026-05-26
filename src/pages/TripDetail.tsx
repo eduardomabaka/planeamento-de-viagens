@@ -8,6 +8,7 @@ import {
 } from '../api';
 import type { Trip, TripMember, TripTask, TripExpense, TripDocument, TripVote, Message, User, DiaryEntry } from '../types';
 import { Icon, Modal, ConfirmDialog } from '../components/ui';
+import { APP_CURRENCY_CODE, APP_CURRENCY_SYMBOL, formatAOA, formatAOACompact } from '../utils/currency';
 
 type Tab = 'overview' | 'members' | 'chat' | 'tasks' | 'expenses' | 'documents' | 'votes' | 'diary';
 
@@ -40,9 +41,13 @@ export function TripDetail() {
 
   const handleDelete = async () => {
     if (!trip) return;
-    await tripsApi.delete(trip.id);
-    showToast('success', 'Viagem eliminada');
-    navigate('/viagens');
+    try {
+      await tripsApi.delete(trip.id);
+      showToast('success', 'Viagem eliminada');
+      navigate('/viagens');
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const isMember = members.some(m => m.user_id === user?.id);
@@ -104,7 +109,7 @@ export function TripDetail() {
               <div style={{ display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap', opacity: 0.85 }}>
                 <span>📅 {new Date(trip.data_partida).toLocaleDateString('pt-PT')} → {new Date(trip.data_regresso).toLocaleDateString('pt-PT')}</span>
                 <span>👥 {members.length} membro(s)</span>
-                <span>💰 {trip.orcamento_total.toLocaleString('pt-PT')}€</span>
+                <span>💰 {formatAOA(trip.orcamento_total)}</span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -158,9 +163,9 @@ export function TripDetail() {
         <>
           {tab === 'overview' && <OverviewTab trip={trip} members={members}/>}
           {tab === 'members' && <MembersTab tripId={trip.id} members={members} onReload={load}/>}
-          {tab === 'chat' && <ChatTab tripId={trip.id}/>}
+          {tab === 'chat' && <ChatTab tripId={trip.id} members={members}/>}
           {tab === 'tasks' && <TasksTab tripId={trip.id} members={members}/>}
-          {tab === 'expenses' && <ExpensesTab trip={trip}/>}
+          {tab === 'expenses' && <ExpensesTab trip={trip} onTripUpdated={setTrip}/>}
           {tab === 'documents' && <DocumentsTab tripId={trip.id}/>}
           {tab === 'votes' && <VotesTab tripId={trip.id} members={members}/>}
           {tab === 'diary' && <DiaryTab trip={trip}/>}
@@ -197,10 +202,10 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
           <Icon.Dollar size={18}/>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Orçamento</span>
         </div>
-        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em' }}>{trip.orcamento_total.toLocaleString('pt-PT')}€</div>
+        <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatAOACompact(trip.orcamento_total)}</div>
         <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>Para {trip.num_viajantes} viajante(s)</div>
         <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, backdropFilter: 'blur(10px)' }}>
-          ≈ {(trip.orcamento_total / Math.max(trip.num_viajantes, 1)).toFixed(0)}€ por pessoa
+          ≈ {formatAOACompact(trip.orcamento_total / Math.max(trip.num_viajantes, 1))} por pessoa
         </div>
       </div>
 
@@ -234,18 +239,18 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
 
       {trip.destino_info && (
         <>
-          <div className="card" style={{ background: 'var(--gradient-ocean)', color: 'white', border: 'none' }}>
+          {trip.destino_info.clima && <div className="card" style={{ background: 'var(--gradient-ocean)', color: 'white', border: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, opacity: 0.95 }}>
-              <span style={{ fontSize: 28 }}>{trip.destino_info.clima.icon}</span>
+              <span style={{ fontSize: 28 }}>{trip.destino_info.clima.icon || '☁️'}</span>
               <div>
                 <div style={{ fontSize: 12, opacity: 0.9, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 700 }}>Clima previsto</div>
                 <div style={{ fontSize: 13 }}>{trip.destino_info.clima.descricao}</div>
               </div>
             </div>
             <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-0.03em' }}>{trip.destino_info.clima.temp}°C</div>
-          </div>
+          </div>}
 
-          <div className="card">
+          {!!trip.destino_info.atracoes?.length && <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-primary-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 🏛️
@@ -255,9 +260,9 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {trip.destino_info.atracoes.map((a, i) => <span key={i} className="chip chip-blue">{a}</span>)}
             </div>
-          </div>
+          </div>}
 
-          <div className="card">
+          {!!trip.destino_info.vacinas?.length && <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 💉
@@ -267,7 +272,7 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
             <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--color-text-2)', lineHeight: 1.8 }}>
               {trip.destino_info.vacinas.map((v, i) => <li key={i}>{v}</li>)}
             </ul>
-          </div>
+          </div>}
         </>
       )}
     </div>
@@ -278,6 +283,7 @@ function OverviewTab({ trip, members }: { trip: Trip; members: TripMember[] }) {
 function MembersTab({ tripId, members, onReload }: { tripId: number; members: (TripMember & { user?: User })[]; onReload: () => void }) {
   const { user, showToast } = useApp();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [removeUserId, setRemoveUserId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [candidates, setCandidates] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -308,10 +314,10 @@ function MembersTab({ tripId, members, onReload }: { tripId: number; members: (T
     }
   };
 
-  const handleRemove = async (userId: number) => {
-    if (!confirm('Remover este membro?')) return;
+  const handleRemove = async () => {
+    if (!removeUserId) return;
     try {
-      await membersApi.remove(tripId, userId);
+      await membersApi.remove(tripId, removeUserId);
       showToast('success', 'Membro removido');
       await onReload();
     } catch (err: any) {
@@ -341,7 +347,7 @@ function MembersTab({ tripId, members, onReload }: { tripId: number; members: (T
             </div>
             <span className={`chip ${m.role === 'criador' ? 'chip-primary' : 'chip-blue'}`}>{m.role}</span>
             {m.role !== 'criador' && user?.id !== m.user_id && (
-              <button onClick={() => handleRemove(m.user_id!)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}>
+              <button onClick={() => setRemoveUserId(m.user_id!)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}>
                 <Icon.X size={16}/>
               </button>
             )}
@@ -370,26 +376,59 @@ function MembersTab({ tripId, members, onReload }: { tripId: number; members: (T
           </div>
         )}
       </Modal>
+      <ConfirmDialog
+        open={removeUserId !== null}
+        onClose={() => setRemoveUserId(null)}
+        onConfirm={handleRemove}
+        title="Remover membro"
+        message="Tens a certeza que queres remover este membro da viagem?"
+        confirmLabel="Remover"
+        danger
+      />
     </div>
   );
 }
 
 // ===== CHAT TAB =====
-function ChatTab({ tripId }: { tripId: number }) {
-  const { user } = useApp();
+function ChatTab({ tripId, members }: { tripId: number; members: (TripMember & { user?: User })[] }) {
+  const { user, showToast } = useApp();
   const [messages, setMessages] = useState<(Message & { user?: User })[]>([]);
   const [text, setText] = useState('');
+  const chatEnabled = members.filter(m => m.accepted).length > 1;
 
   const load = async () => setMessages(await messagesApi.listByTrip(tripId));
-  useEffect(() => { load(); const i = setInterval(load, 3000); return () => clearInterval(i); }, [tripId]);
+  useEffect(() => {
+    if (!chatEnabled) return;
+    load();
+    const i = setInterval(load, 3000);
+    return () => clearInterval(i);
+  }, [tripId, chatEnabled]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!chatEnabled) return;
     if (!text.trim() || !user) return;
-    await messagesApi.send(tripId, user.id, text);
-    setText('');
-    await load();
+    try {
+      await messagesApi.send(tripId, user.id, text);
+      setText('');
+      showToast('success', 'Mensagem enviada');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
+
+  if (!chatEnabled) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--color-primary-soft)', color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+          <Icon.Chat size={26}/>
+        </div>
+        <h3 style={{ margin: 0, fontSize: 18 }}>Chat indisponível</h3>
+        <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>Convida pelo menos um viajante para activar o chat do grupo</p>
+      </div>
+    );
+  }
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 600, padding: 0 }}>
@@ -418,8 +457,8 @@ function ChatTab({ tripId }: { tripId: number }) {
         })}
       </div>
       <form onSubmit={send} style={{ padding: 12, borderTop: '1px solid var(--color-border)', display: 'flex', gap: 8 }}>
-        <input className="input" value={text} onChange={e => setText(e.target.value)} placeholder="Escreva uma mensagem..." style={{ flex: 1 }}/>
-        <button type="submit" className="btn btn-primary"><Icon.Send size={16}/></button>
+        <input className="input" value={text} onChange={e => setText(e.target.value)} placeholder="Escreva uma mensagem..." style={{ flex: 1 }} disabled={!chatEnabled}/>
+        <button type="submit" className="btn btn-primary" disabled={!chatEnabled}><Icon.Send size={16}/></button>
       </form>
     </div>
   );
@@ -434,6 +473,7 @@ function TasksTab({ tripId, members }: { tripId: number; members: (TripMember & 
   const [descricao, setDescricao] = useState('');
   const [responsavel, setResponsavel] = useState(user?.id || 0);
   const [dataLimite, setDataLimite] = useState('');
+  const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
   const load = async () => setTasks(await tasksApi.listByTrip(tripId));
   useEffect(() => { load(); }, [tripId]);
@@ -450,16 +490,25 @@ function TasksTab({ tripId, members }: { tripId: number; members: (TripMember & 
   };
 
   const toggleStatus = async (t: TripTask) => {
-    const next = t.status === 'pendente' ? 'em_progresso' : t.status === 'em_progresso' ? 'concluida' : 'pendente';
-    await tasksApi.update(t.id, { status: next });
-    await load();
+    try {
+      const next = t.status === 'pendente' ? 'em_progresso' : t.status === 'em_progresso' ? 'concluida' : 'pendente';
+      await tasksApi.update(t.id, { status: next });
+      showToast('success', 'Estado da tarefa atualizado');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
-  const remove = async (id: number) => {
-    if (!confirm('Eliminar esta tarefa?')) return;
-    await tasksApi.delete(id);
-    showToast('success', 'Tarefa eliminada');
-    await load();
+  const remove = async () => {
+    if (!deleteTaskId) return;
+    try {
+      await tasksApi.delete(deleteTaskId);
+      showToast('success', 'Tarefa eliminada');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const statusColor = { pendente: 'chip-warning', em_progresso: 'chip-blue', concluida: 'chip-success' };
@@ -484,7 +533,7 @@ function TasksTab({ tripId, members }: { tripId: number; members: (TripMember & 
               </div>
             </div>
             <span className={`chip ${statusColor[t.status]}`}>{t.status}</span>
-            <button onClick={() => remove(t.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
+            <button onClick={() => setDeleteTaskId(t.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
           </div>
         ))}
         {tasks.length === 0 && <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 20 }}>Sem tarefas ainda</p>}
@@ -513,21 +562,34 @@ function TasksTab({ tripId, members }: { tripId: number; members: (TripMember & 
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Criar tarefa</button>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={deleteTaskId !== null}
+        onClose={() => setDeleteTaskId(null)}
+        onConfirm={remove}
+        title="Eliminar tarefa"
+        message="Tens a certeza que queres eliminar esta tarefa? Esta ação é irreversível"
+        confirmLabel="Eliminar"
+        danger
+      />
     </div>
   );
 }
 
 // ===== EXPENSES TAB =====
-function ExpensesTab({ trip }: { trip: Trip }) {
+function ExpensesTab({ trip, onTripUpdated }: { trip: Trip; onTripUpdated: (trip: Trip) => void }) {
   const { user, showToast } = useApp();
   const [expenses, setExpenses] = useState<(TripExpense & { user?: User })[]>([]);
   const [open, setOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [newBudget, setNewBudget] = useState(trip.orcamento_total);
+  const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
   const [categoria, setCategoria] = useState('Voos');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState(0);
 
   const load = async () => setExpenses(await expensesApi.listByTrip(trip.id));
   useEffect(() => { load(); }, [trip.id]);
+  useEffect(() => { setNewBudget(trip.orcamento_total); }, [trip.orcamento_total]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -539,21 +601,42 @@ function ExpensesTab({ trip }: { trip: Trip }) {
       await load();
 
       const total = (await expensesApi.listByTrip(trip.id)).reduce((s, e) => s + e.valor, 0);
-      if (total > trip.orcamento_total * 0.8 && total <= trip.orcamento_total * 0.8 + valor) {
+      if (trip.orcamento_total > 0 && total > trip.orcamento_total * 0.8 && total <= trip.orcamento_total * 0.8 + valor) {
         showToast('info', '⚠️ Gastos ultrapassaram 80% do orçamento!');
       }
     } catch (err: any) { showToast('error', err.message); }
   };
 
-  const remove = async (id: number) => {
-    if (!confirm('Eliminar despesa?')) return;
-    await expensesApi.delete(id);
-    await load();
+  const remove = async () => {
+    if (!deleteExpenseId) return;
+    try {
+      await expensesApi.delete(deleteExpenseId);
+      showToast('success', 'Despesa eliminada');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
+  };
+
+  const updateBudget = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!Number.isFinite(newBudget) || newBudget <= 0) {
+      showToast('error', 'O orçamento deve ser um número positivo maior que zero');
+      return;
+    }
+    try {
+      const updated = await tripsApi.update(trip.id, { orcamento_total: newBudget });
+      onTripUpdated(updated);
+      setBudgetOpen(false);
+      showToast('success', 'Orçamento atualizado');
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const total = expenses.reduce((s, e) => s + e.valor, 0);
   const perPerson = expenses.length ? total / Math.max(trip.num_viajantes, 1) : 0;
-  const pct = Math.min(100, (total / trip.orcamento_total) * 100);
+  const pct = trip.orcamento_total > 0 ? Math.min(100, (total / trip.orcamento_total) * 100) : 0;
   const byCat: Record<string, number> = {};
   expenses.forEach(e => { byCat[e.categoria] = (byCat[e.categoria] || 0) + e.valor; });
 
@@ -567,15 +650,20 @@ function ExpensesTab({ trip }: { trip: Trip }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Total gasto</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)' }}>{total.toFixed(2)}€</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)' }}>{formatAOA(total)}</div>
         </div>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Orçamento</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{trip.orcamento_total}€</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Orçamento</div>
+            <button className="btn btn-ghost" onClick={() => setBudgetOpen(true)} style={{ padding: '4px 6px', fontSize: 12 }}>
+              <Icon.Edit size={13}/> Editar orçamento
+            </button>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{formatAOA(trip.orcamento_total)}</div>
         </div>
         <div style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Por pessoa</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-blue)' }}>{perPerson.toFixed(2)}€</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-blue)' }}>{formatAOA(perPerson)}</div>
         </div>
       </div>
 
@@ -593,7 +681,7 @@ function ExpensesTab({ trip }: { trip: Trip }) {
       {Object.keys(byCat).length > 0 && (
         <div style={{ marginBottom: 16, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {Object.entries(byCat).map(([cat, v]) => (
-            <span key={cat} className="chip chip-blue">{cat}: {v.toFixed(2)}€</span>
+            <span key={cat} className="chip chip-blue">{cat}: {formatAOA(v)}</span>
           ))}
         </div>
       )}
@@ -605,8 +693,8 @@ function ExpensesTab({ trip }: { trip: Trip }) {
               <div style={{ fontWeight: 600 }}>{e.descricao}</div>
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{e.categoria} · {e.user?.nome} · {e.data}</div>
             </div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-primary)' }}>{e.valor.toFixed(2)}€</div>
-            <button onClick={() => remove(e.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-primary)' }}>{formatAOA(e.valor)}</div>
+            <button onClick={() => setDeleteExpenseId(e.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
           </div>
         ))}
         {expenses.length === 0 && <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 20 }}>Sem despesas ainda</p>}
@@ -625,12 +713,40 @@ function ExpensesTab({ trip }: { trip: Trip }) {
             <input className="input" value={descricao} onChange={e => setDescricao(e.target.value)}/>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label className="label">Valor (€) *</label>
-            <input className="input" type="number" min="0" step="0.01" value={valor} onChange={e => setValor(Number(e.target.value))}/>
+            <label className="label">Valor ({APP_CURRENCY_CODE}) *</label>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span style={{ padding: '0 12px', alignSelf: 'stretch', display: 'flex', alignItems: 'center', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRight: 0, borderRadius: '8px 0 0 8px', fontWeight: 700 }}>
+                {APP_CURRENCY_SYMBOL}
+              </span>
+              <input className="input" type="number" min="0" step="0.01" value={valor} onChange={e => setValor(Number(e.target.value))} style={{ borderRadius: '0 8px 8px 0' }}/>
+            </div>
           </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Adicionar</button>
         </form>
       </Modal>
+      <Modal open={budgetOpen} onClose={() => setBudgetOpen(false)} title="Editar orçamento">
+        <form onSubmit={updateBudget}>
+          <div style={{ marginBottom: 16 }}>
+            <label className="label">Novo orçamento ({APP_CURRENCY_CODE}) *</label>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span style={{ padding: '0 12px', alignSelf: 'stretch', display: 'flex', alignItems: 'center', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRight: 0, borderRadius: '8px 0 0 8px', fontWeight: 700 }}>
+                {APP_CURRENCY_SYMBOL}
+              </span>
+              <input className="input" type="number" min="0.01" step="0.01" value={newBudget} onChange={e => setNewBudget(Number(e.target.value))} style={{ borderRadius: '0 8px 8px 0' }}/>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar orçamento</button>
+        </form>
+      </Modal>
+      <ConfirmDialog
+        open={deleteExpenseId !== null}
+        onClose={() => setDeleteExpenseId(null)}
+        onConfirm={remove}
+        title="Eliminar despesa"
+        message="Tens a certeza que queres eliminar esta despesa? Esta ação é irreversível"
+        confirmLabel="Eliminar"
+        danger
+      />
     </div>
   );
 }
@@ -640,6 +756,7 @@ function DocumentsTab({ tripId }: { tripId: number }) {
   const { user, showToast } = useApp();
   const [docs, setDocs] = useState<TripDocument[]>([]);
   const [open, setOpen] = useState(false);
+  const [deleteDocId, setDeleteDocId] = useState<number | null>(null);
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState('Passaporte');
 
@@ -649,21 +766,35 @@ function DocumentsTab({ tripId }: { tripId: number }) {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome) { showToast('error', 'Nome obrigatório'); return; }
-    await documentsApi.create({ trip_id: tripId, user_id: user!.id, nome, tipo, status: 'pendente' });
-    showToast('success', 'Documento adicionado');
-    setNome(''); setOpen(false);
-    await load();
+    try {
+      await documentsApi.create({ trip_id: tripId, user_id: user!.id, nome, tipo, status: 'pendente' });
+      showToast('success', 'Documento adicionado');
+      setNome(''); setOpen(false);
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const toggle = async (id: number) => {
-    await documentsApi.toggleStatus(id);
-    await load();
+    try {
+      await documentsApi.toggleStatus(id);
+      showToast('success', 'Estado do documento atualizado');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
-  const remove = async (id: number) => {
-    if (!confirm('Eliminar documento?')) return;
-    await documentsApi.delete(id);
-    await load();
+  const remove = async () => {
+    if (!deleteDocId) return;
+    try {
+      await documentsApi.delete(deleteDocId);
+      showToast('success', 'Documento eliminado');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   return (
@@ -683,7 +814,7 @@ function DocumentsTab({ tripId }: { tripId: number }) {
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{d.tipo}</div>
             </div>
             <span className={`chip ${d.status === 'tratado' ? 'chip-success' : 'chip-warning'}`}>{d.status}</span>
-            <button onClick={() => remove(d.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
+            <button onClick={() => setDeleteDocId(d.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
           </div>
         ))}
         {docs.length === 0 && <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 20 }}>Sem documentos</p>}
@@ -704,6 +835,15 @@ function DocumentsTab({ tripId }: { tripId: number }) {
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Adicionar</button>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={deleteDocId !== null}
+        onClose={() => setDeleteDocId(null)}
+        onConfirm={remove}
+        title="Eliminar documento"
+        message="Tens a certeza que queres eliminar este documento? Esta ação é irreversível"
+        confirmLabel="Eliminar"
+        danger
+      />
     </div>
   );
 }
@@ -713,6 +853,9 @@ function VotesTab({ tripId, members }: { tripId: number; members: (TripMember & 
   const { user, showToast } = useApp();
   const [votes, setVotes] = useState<TripVote[]>([]);
   const [newAct, setNewAct] = useState('');
+  const [editingAct, setEditingAct] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [deletingAct, setDeletingAct] = useState<string | null>(null);
 
   const load = async () => setVotes(await votesApi.listByTrip(tripId));
   useEffect(() => { load(); }, [tripId]);
@@ -721,16 +864,57 @@ function VotesTab({ tripId, members }: { tripId: number; members: (TripMember & 
 
   const cast = async (act: string, voto: boolean) => {
     if (!user) return;
-    await votesApi.vote(tripId, act, user.id, voto);
-    await load();
+    try {
+      await votesApi.vote(tripId, act, user.id, voto);
+      showToast('success', 'Voto registado');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const addAct = async () => {
     if (!newAct.trim() || !user) { showToast('error', 'Escreva uma atividade'); return; }
-    await votesApi.addActividade(String(tripId), newAct, user.id);
-    showToast('success', 'Atividade proposta');
-    setNewAct('');
-    await load();
+    try {
+      await votesApi.addActividade(String(tripId), newAct, user.id);
+      showToast('success', 'Atividade proposta');
+      setNewAct('');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
+  };
+
+  const openEdit = (act: string) => {
+    setEditingAct(act);
+    setEditTitle(act);
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAct || !user) return;
+    if (!editTitle.trim()) { showToast('error', 'O título da atividade é obrigatório'); return; }
+    try {
+      await votesApi.updateActividade(tripId, editingAct, editTitle.trim(), user.id);
+      showToast('success', 'Votação atualizada');
+      setEditingAct(null);
+      setEditTitle('');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
+  };
+
+  const deleteVote = async () => {
+    if (!deletingAct || !user) return;
+    try {
+      await votesApi.deleteActividade(tripId, deletingAct, user.id);
+      showToast('success', 'Votação eliminada');
+      setDeletingAct(null);
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   return (
@@ -746,9 +930,23 @@ function VotesTab({ tripId, members }: { tripId: number; members: (TripMember & 
           const sim = actVotes.filter(v => v.voto).length;
           const nao = actVotes.filter(v => !v.voto).length;
           const myVote = actVotes.find(v => v.user_id === user?.id);
+          const creatorId = [...actVotes].sort((a, b) => a.id - b.id)[0]?.user_id;
+          const canManage = creatorId === user?.id;
           return (
             <div key={act} style={{ padding: 14, background: 'var(--color-bg)', borderRadius: 8 }}>
-              <div style={{ fontWeight: 600, marginBottom: 10 }}>{act}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, minWidth: 0 }}>{act}</div>
+                {canManage && (
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button className="btn btn-ghost" onClick={() => openEdit(act)} style={{ padding: '6px 8px' }} title="Editar votação">
+                      <Icon.Edit size={14}/>
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => setDeletingAct(act)} style={{ padding: '6px 8px', color: 'var(--color-danger)' }} title="Eliminar votação">
+                      <Icon.Trash size={14}/>
+                    </button>
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <button onClick={() => cast(act, true)} className={`btn ${myVote?.voto === true ? 'btn-primary' : 'btn-ghost'}`}>👍 Sim ({sim})</button>
                 <button onClick={() => cast(act, false)} className={`btn ${myVote?.voto === false ? 'btn-danger' : 'btn-ghost'}`}>👎 Não ({nao})</button>
@@ -764,6 +962,24 @@ function VotesTab({ tripId, members }: { tripId: number; members: (TripMember & 
         })}
         {actividades.length === 0 && <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 20 }}>Sem atividades propostas</p>}
       </div>
+      <Modal open={editingAct !== null} onClose={() => setEditingAct(null)} title="Editar votação">
+        <form onSubmit={saveEdit}>
+          <div style={{ marginBottom: 16 }}>
+            <label className="label">Título da actividade *</label>
+            <input className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)}/>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Confirmar</button>
+        </form>
+      </Modal>
+      <ConfirmDialog
+        open={deletingAct !== null}
+        onClose={() => setDeletingAct(null)}
+        onConfirm={deleteVote}
+        title="Eliminar votação"
+        message="Tens a certeza que queres eliminar esta votação?"
+        confirmLabel="Eliminar"
+        danger
+      />
     </div>
   );
 }
@@ -778,6 +994,7 @@ function DiaryTab({ trip }: { trip: Trip }) {
   const [descricao, setDescricao] = useState('');
   const [notas, setNotas] = useState('');
   const [fotos, setFotos] = useState<string[]>([]);
+  const [deleteEntryId, setDeleteEntryId] = useState<number | null>(null);
 
   const load = async () => setEntries(await diaryApi.listByTrip(trip.id));
   useEffect(() => { load(); }, [trip.id]);
@@ -794,16 +1011,25 @@ function DiaryTab({ trip }: { trip: Trip }) {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titulo || !data || !descricao) { showToast('error', 'Preencha todos os campos'); return; }
-    await diaryApi.create({ trip_id: trip.id, user_id: user!.id, titulo, data, descricao, notas, fotos });
-    showToast('success', 'Entrada adicionada ao diário');
-    setTitulo(''); setData(''); setDescricao(''); setNotas(''); setFotos([]); setOpen(false);
-    await load();
+    try {
+      await diaryApi.create({ trip_id: trip.id, user_id: user!.id, titulo, data, descricao, notas, fotos });
+      showToast('success', 'Entrada adicionada ao diário');
+      setTitulo(''); setData(''); setDescricao(''); setNotas(''); setFotos([]); setOpen(false);
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
-  const remove = async (id: number) => {
-    if (!confirm('Eliminar esta entrada?')) return;
-    await diaryApi.delete(id);
-    await load();
+  const remove = async () => {
+    if (!deleteEntryId) return;
+    try {
+      await diaryApi.delete(deleteEntryId);
+      showToast('success', 'Entrada do diário eliminada');
+      await load();
+    } catch (err: any) {
+      showToast('error', err.message);
+    }
   };
 
   const exportPDF = () => {
@@ -837,7 +1063,7 @@ function DiaryTab({ trip }: { trip: Trip }) {
                   </div>
                 )}
               </div>
-              <button onClick={() => remove(e.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
+              <button onClick={() => setDeleteEntryId(e.id)} className="btn btn-ghost" style={{ padding: 6, color: 'var(--color-danger)' }}><Icon.Trash size={14}/></button>
             </div>
           </div>
         ))}
@@ -879,6 +1105,15 @@ function DiaryTab({ trip }: { trip: Trip }) {
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar entrada</button>
         </form>
       </Modal>
+      <ConfirmDialog
+        open={deleteEntryId !== null}
+        onClose={() => setDeleteEntryId(null)}
+        onConfirm={remove}
+        title="Eliminar entrada do diário"
+        message="Tens a certeza que queres eliminar esta entrada? Esta ação é irreversível"
+        confirmLabel="Eliminar"
+        danger
+      />
     </div>
   );
 }

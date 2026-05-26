@@ -4,6 +4,7 @@ import { useApp } from '../context';
 import { tripsApi } from '../api';
 import type { Trip } from '../types';
 import { Icon, EmptyState, ConfirmDialog } from '../components/ui';
+import { formatAOA } from '../utils/currency';
 
 const tripIcons = { lazer: '🌴', negocios: '💼', aventura: '⛰️' };
 
@@ -84,7 +85,7 @@ export function MyTrips() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, marginBottom: 14 }}>
                 <div><Icon.Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/> {new Date(t.data_partida).toLocaleDateString('pt-PT')} → {new Date(t.data_regresso).toLocaleDateString('pt-PT')}</div>
                 <div><Icon.Users size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/> {t.num_viajantes} viajante(s)</div>
-                <div style={{ fontWeight: 700, color: 'var(--color-primary)' }}><Icon.Dollar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/> {t.orcamento_total.toLocaleString('pt-PT')}€</div>
+                <div style={{ fontWeight: 700, color: 'var(--color-primary)' }}><Icon.Dollar size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/> {formatAOA(t.orcamento_total)}</div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
                 <Link to={`/viagens/${t.id}`} className="btn btn-primary" style={{ flex: 1 }}>Ver detalhes</Link>

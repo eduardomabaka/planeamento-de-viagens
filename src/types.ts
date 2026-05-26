@@ -34,15 +34,19 @@ export interface DestinoInfo {
   capital?: string;
   idioma: string;
   moeda: string;
+  moeda_nome?: string;
   cambio: number;
+  cambio_aoa?: number;
+  conversao_aoa?: string;
   fuso_horario: string;
-  clima: { temp: number; descricao: string; icon: string };
-  contactos_emergencia: { embaixada: string; hospital: string; policia: string };
-  dicas_culturais: string[];
-  atracoes: string[];
-  vacinas: string[];
-  hoteis: { nome: string; preco: number; rating: number }[];
-  transporte: string[];
+  regiao?: string;
+  clima?: { temp: number; descricao: string; icon: string };
+  contactos_emergencia?: { embaixada: string; hospital: string; policia: string };
+  dicas_culturais?: string[];
+  atracoes?: string[];
+  vacinas?: string[];
+  hoteis?: { nome: string; preco: number; rating: number }[];
+  transporte?: string[];
 }
 
 export interface TripMember {

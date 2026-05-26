@@ -4,6 +4,7 @@ import { useApp } from '../context';
 import { tripsApi } from '../api';
 import type { DestinoInfo, TripType } from '../types';
 import { Icon } from '../components/ui';
+import { APP_CURRENCY_CODE, APP_CURRENCY_SYMBOL, formatAOA, formatCurrencyCode } from '../utils/currency';
 
 export function NewTrip() {
   const { user, showToast } = useApp();
@@ -41,10 +42,11 @@ export function NewTrip() {
     if (!destino.trim()) return;
     setLoadingInfo(true);
     try {
-      const info = await tripsApi.fetchDestinoInfo(destino);
+      const info = await tripsApi.fetchDestinoInfo(destino, dataPartida || undefined);
       setDestinoInfo(info);
       showToast('success', `Informação de ${info.pais} carregada`);
     } catch (err: any) {
+      setDestinoInfo(null);
       showToast('error', err.message);
     } finally {
       setLoadingInfo(false);
@@ -126,8 +128,13 @@ export function NewTrip() {
               <input className="input" type="number" min="1" value={numViajantes} onChange={e => setNumViajantes(Number(e.target.value))} />
             </div>
             <div>
-              <label className="label">Orçamento total (€) *</label>
-              <input className="input" type="number" min="0" value={orcamento} onChange={e => setOrcamento(Number(e.target.value))} />
+              <label className="label">Orçamento total ({APP_CURRENCY_CODE}) *</label>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ padding: '0 12px', alignSelf: 'stretch', display: 'flex', alignItems: 'center', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRight: 0, borderRadius: '8px 0 0 8px', fontWeight: 700 }}>
+                  {APP_CURRENCY_SYMBOL}
+                </span>
+                <input className="input" type="number" min="0" value={orcamento} onChange={e => setOrcamento(Number(e.target.value))} style={{ borderRadius: '0 8px 8px 0' }} />
+              </div>
             </div>
             <div style={{ gridColumn: 'span 1' }}>
               <label className="label">Tipo de viagem *</label>
@@ -153,59 +160,62 @@ export function NewTrip() {
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
               <InfoBlock icon="🗣️" title="Idioma" value={destinoInfo.idioma}/>
-              <InfoBlock icon="💰" title="Moeda" value={`${destinoInfo.moeda} (câmbio: ${destinoInfo.cambio})`}/>
+              <InfoBlock icon="💰" title="Moeda" value={`${destinoInfo.moeda}${destinoInfo.moeda_nome ? ` - ${destinoInfo.moeda_nome}` : ''}`}/>
+              <InfoBlock icon="Kz" title="Conversão" value={destinoInfo.conversao_aoa || `1 ${destinoInfo.moeda} = ${formatAOA(destinoInfo.cambio_aoa || destinoInfo.cambio)}`}/>
               <InfoBlock icon="🕐" title="Fuso horário" value={destinoInfo.fuso_horario}/>
-              <InfoBlock icon={destinoInfo.clima.icon} title="Clima" value={`${destinoInfo.clima.temp}°C - ${destinoInfo.clima.descricao}`}/>
+              {destinoInfo.capital && <InfoBlock icon="🏛️" title="Capital" value={destinoInfo.capital}/>}
+              {destinoInfo.regiao && <InfoBlock icon="🌍" title="Região" value={destinoInfo.regiao}/>}
+              {destinoInfo.clima && <InfoBlock icon={destinoInfo.clima.icon || '☁️'} title="Clima" value={`${destinoInfo.clima.temp}°C - ${destinoInfo.clima.descricao}`}/>}
             </div>
 
-            <div style={{ marginTop: 16 }}>
+            {destinoInfo.contactos_emergencia && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>🚨 Contactos de emergência</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, fontSize: 13 }}>
                 <div>🏛️ Embaixada: {destinoInfo.contactos_emergencia.embaixada}</div>
                 <div>🏥 Hospital: {destinoInfo.contactos_emergencia.hospital}</div>
                 <div>👮 Polícia: {destinoInfo.contactos_emergencia.policia}</div>
               </div>
-            </div>
+            </div>}
 
-            <div style={{ marginTop: 16 }}>
+            {!!destinoInfo.dicas_culturais?.length && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>💡 Dicas culturais</h4>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
                 {destinoInfo.dicas_culturais.map((d, i) => <li key={i}>{d}</li>)}
               </ul>
-            </div>
+            </div>}
 
-            <div style={{ marginTop: 16 }}>
+            {!!destinoInfo.atracoes?.length && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>🏛️ Atrações turísticas</h4>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {destinoInfo.atracoes.map((a, i) => <span key={i} className="chip chip-blue">{a}</span>)}
               </div>
-            </div>
+            </div>}
 
-            <div style={{ marginTop: 16 }}>
+            {!!destinoInfo.vacinas?.length && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>💉 Vacinas recomendadas</h4>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
                 {destinoInfo.vacinas.map((v, i) => <li key={i}>{v}</li>)}
               </ul>
-            </div>
+            </div>}
 
-            <div style={{ marginTop: 16 }}>
+            {!!destinoInfo.hoteis?.length && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>🏨 Sugestões de hotéis</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
                 {destinoInfo.hoteis.map((h, i) => (
                   <div key={i} style={{ padding: 10, background: 'var(--color-bg)', borderRadius: 8 }}>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{h.nome}</div>
-                    <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>⭐ {h.rating} · {h.preco}€/noite</div>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>⭐ {h.rating} · {formatCurrencyCode(h.preco, destinoInfo.moeda)}/noite</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </div>}
 
-            <div style={{ marginTop: 16 }}>
+            {!!destinoInfo.transporte?.length && <div style={{ marginTop: 16 }}>
               <h4 style={{ fontSize: 14, margin: '0 0 8px' }}>🚗 Transporte</h4>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {destinoInfo.transporte.map((t, i) => <span key={i} className="chip">{t}</span>)}
               </div>
-            </div>
+            </div>}
           </div>
         )}
 

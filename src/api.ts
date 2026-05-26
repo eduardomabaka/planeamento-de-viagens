@@ -4,6 +4,7 @@
 
 import type { User, Trip, TripMember, TripTask, TripExpense, TripDocument, DiaryEntry, TripVote, Message, Notification, Publication, Follow, DestinoInfo } from './types';
 import { seedUsers, seedTrips, seedMembers, seedTasks, seedExpenses, seedDocuments, seedDiary, seedVotes, seedMessages, seedNotifications, seedPublications, seedFollows, seedPasswords } from './seed';
+import { APP_CURRENCY_CODE, formatAOA } from './utils/currency';
 
 const DB_KEY = 'tripplanner_db';
 const SESSION_KEY = 'tripplanner_session';
@@ -70,6 +71,132 @@ function nextId(db: DB, key: keyof DB['counters']): number {
 
 // Simulate async network call
 const delay = (ms = 150) => new Promise(r => setTimeout(r, ms));
+const DESTINO_NOT_FOUND_MESSAGE = 'Não foi possível obter informações automáticas para este destino. Podes continuar e preencher manualmente';
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(DESTINO_NOT_FOUND_MESSAGE);
+  return response.json();
+}
+
+function destinationSearchTerms(destino: string): string[] {
+  const parts = destino.split(',').map(p => p.trim()).filter(Boolean);
+  return Array.from(new Set([parts[parts.length - 1], destino.trim()].filter(Boolean)));
+}
+
+function localizedCountryName(country: any): string {
+  return country.translations?.por?.common || country.name?.common || '';
+}
+
+function localizedRegion(region?: string): string | undefined {
+  const regions: Record<string, string> = {
+    Africa: 'África',
+    Americas: 'Américas',
+    Antarctic: 'Antártida',
+    Asia: 'Ásia',
+    Europe: 'Europa',
+    Oceania: 'Oceânia',
+  };
+  return region ? regions[region] || region : undefined;
+}
+
+function localizedLanguages(languages: Record<string, string> = {}): string {
+  const displayNames = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
+    ? new Intl.DisplayNames(['pt'], { type: 'language' })
+    : null;
+
+  return Object.entries(languages).map(([code, fallback]) => {
+    const name = displayNames?.of(code) || fallback;
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }).join(', ');
+}
+
+function localizedCurrencyName(code: string, fallback?: string): string | undefined {
+  const displayNames = typeof Intl !== 'undefined' && 'DisplayNames' in Intl
+    ? new Intl.DisplayNames(['pt'], { type: 'currency' })
+    : null;
+  return displayNames?.of(code) || fallback;
+}
+
+function weatherIcon(code?: string): string {
+  if (!code) return '';
+  if (code.startsWith('01')) return '☀️';
+  if (code.startsWith('02')) return '⛅';
+  if (code.startsWith('03') || code.startsWith('04')) return '☁️';
+  if (code.startsWith('09') || code.startsWith('10')) return '🌧️';
+  if (code.startsWith('11')) return '⛈️';
+  if (code.startsWith('13')) return '❄️';
+  if (code.startsWith('50')) return '🌫️';
+  return '';
+}
+
+async function fetchCountryInfo(destino: string): Promise<any> {
+  for (const term of destinationSearchTerms(destino)) {
+    try {
+      const countries = await fetchJson<any[]>(`https://restcountries.com/v3.1/name/${encodeURIComponent(term)}?fullText=true&fields=name,translations,capital,languages,currencies,timezones,region`);
+      if (Array.isArray(countries) && countries.length > 0) return countries[0];
+    } catch {
+      // Try translated and fuzzy variants below.
+    }
+    try {
+      const countries = await fetchJson<any[]>(`https://restcountries.com/v3.1/translation/${encodeURIComponent(term)}?fields=name,translations,capital,languages,currencies,timezones,region`);
+      if (Array.isArray(countries) && countries.length > 0) return countries[0];
+    } catch {
+      // RestCountries may not know the translated country name.
+    }
+    try {
+      const countries = await fetchJson<any[]>(`https://restcountries.com/v3.1/name/${encodeURIComponent(term)}?fields=name,translations,capital,languages,currencies,timezones,region`);
+      if (Array.isArray(countries) && countries.length > 0) return countries[0];
+    } catch {
+      // Try the next term, e.g. "Paris, França" -> "França".
+    }
+  }
+  throw new Error(DESTINO_NOT_FOUND_MESSAGE);
+}
+
+async function fetchAoaRate(currency: string): Promise<number> {
+  if (currency === APP_CURRENCY_CODE) return 1;
+  const exchange = await fetchJson<{ result?: string; rates?: Record<string, number> }>(`https://open.er-api.com/v6/latest/${encodeURIComponent(currency)}`);
+  const rate = exchange.rates?.[APP_CURRENCY_CODE];
+  if (!rate || Number.isNaN(rate)) throw new Error('Não foi possível obter o câmbio em tempo real para Kz');
+  return rate;
+}
+
+async function fetchWeatherInfo(destino: string, dataPartida?: string): Promise<DestinoInfo['clima'] | undefined> {
+  const apiKey = import.meta.env.VITE_OPENWEATHER_API_KEY;
+  if (!apiKey) return undefined;
+
+  const query = encodeURIComponent(destino);
+  const targetTime = dataPartida ? new Date(dataPartida).getTime() : Date.now();
+
+  try {
+    const forecast = await fetchJson<{ list?: any[] }>(`https://api.openweathermap.org/data/2.5/forecast?q=${query}&appid=${apiKey}&units=metric&lang=pt`);
+    const entries = forecast.list || [];
+    if (entries.length > 0) {
+      const closest = entries.reduce((best, item) => {
+        const itemTime = new Date(item.dt_txt).getTime();
+        const bestTime = new Date(best.dt_txt).getTime();
+        return Math.abs(itemTime - targetTime) < Math.abs(bestTime - targetTime) ? item : best;
+      }, entries[0]);
+      return {
+        temp: Math.round(Number(closest.main?.temp)),
+        descricao: closest.weather?.[0]?.description || '',
+        icon: weatherIcon(closest.weather?.[0]?.icon),
+      };
+    }
+  } catch {
+    const current = await fetchJson<any>(`https://api.openweathermap.org/data/2.5/weather?q=${query}&appid=${apiKey}&units=metric&lang=pt`);
+    if (current?.main && current?.weather?.[0]) {
+      return {
+        temp: Math.round(Number(current.main.temp)),
+        descricao: current.weather[0].description || '',
+        icon: weatherIcon(current.weather[0].icon),
+      };
+    }
+  }
+
+  return undefined;
+}
 
 // ========== AUTH ==========
 export const authApi = {
@@ -229,29 +356,27 @@ export const tripsApi = {
     db.messages = db.messages.filter(m => m.trip_id !== id);
     saveDB(db);
   },
-  async fetchDestinoInfo(destino: string): Promise<DestinoInfo> {
-    // Em produção: chama OpenWeatherMap + RestCountries + ExchangeRate via PHP
-    await delay(400);
-    const known: Record<string, DestinoInfo> = {};
-    seedTrips.forEach(t => { if (t.destino_info) known[t.destino.toLowerCase()] = t.destino_info; });
-    const key = destino.toLowerCase();
-    for (const k of Object.keys(known)) {
-      if (k.includes(key) || key.includes(k)) return known[k];
-    }
-    // Fallback genérico
+  async fetchDestinoInfo(destino: string, dataPartida?: string): Promise<DestinoInfo> {
+    await delay(150);
+    const country = await fetchCountryInfo(destino);
+    const currencies = country.currencies || {};
+    const currency = Object.keys(currencies)[0];
+    if (!currency) throw new Error('Não foi possível obter a moeda local do destino');
+    const rateAoa = await fetchAoaRate(currency);
+    const weather = await fetchWeatherInfo(destino, dataPartida);
+
     return {
-      pais: destino,
-      idioma: 'Local',
-      moeda: 'EUR',
-      cambio: 1,
-      fuso_horario: 'GMT+0',
-      clima: { temp: 20, descricao: 'Ameno', icon: '🌤️' },
-      contactos_emergencia: { embaixada: 'N/D', hospital: '112', policia: '112' },
-      dicas_culturais: ['Informar-se sobre costumes locais', 'Respeitar tradições'],
-      atracoes: ['Centro histórico', 'Mercados locais', 'Monumentos'],
-      vacinas: ['Consultar médico antes da viagem'],
-      hoteis: [{ nome: 'Hotel Central', preco: 100, rating: 4.0 }],
-      transporte: ['Táxi', 'Transportes públicos'],
+      pais: localizedCountryName(country),
+      capital: country.capital?.[0],
+      idioma: localizedLanguages(country.languages || {}),
+      moeda: currency,
+      moeda_nome: localizedCurrencyName(currency, currencies[currency]?.name),
+      cambio: rateAoa,
+      cambio_aoa: rateAoa,
+      conversao_aoa: `1 ${currency} = ${formatAOA(rateAoa)}`,
+      fuso_horario: (country.timezones || []).join(', '),
+      regiao: localizedRegion(country.region),
+      clima: weather,
     };
   },
   // Admin stats
@@ -480,6 +605,26 @@ export const votesApi = {
     saveDB(db);
     return v;
   },
+  async updateActividade(tripId: number, oldActividade: string, newActividade: string, userId: number): Promise<void> {
+    await delay();
+    const db = getDB();
+    const votes = db.votes.filter(v => v.trip_id === tripId && v.actividade === oldActividade);
+    if (votes.length === 0) throw new Error('Votação não encontrada');
+    if (votes[0].user_id !== userId) throw new Error('Só o criador pode editar esta votação');
+    const duplicate = db.votes.some(v => v.trip_id === tripId && v.actividade === newActividade && v.actividade !== oldActividade);
+    if (duplicate) throw new Error('Já existe uma votação com esse título');
+    votes.forEach(v => { v.actividade = newActividade; });
+    saveDB(db);
+  },
+  async deleteActividade(tripId: number, actividade: string, userId: number): Promise<void> {
+    await delay();
+    const db = getDB();
+    const votes = db.votes.filter(v => v.trip_id === tripId && v.actividade === actividade);
+    if (votes.length === 0) throw new Error('Votação não encontrada');
+    if (votes[0].user_id !== userId) throw new Error('Só o criador pode eliminar esta votação');
+    db.votes = db.votes.filter(v => !(v.trip_id === tripId && v.actividade === actividade));
+    saveDB(db);
+  },
 };
 
 // ========== MESSAGES ==========
@@ -614,13 +759,14 @@ export function exportToCSV(trip: Trip, tasks: TripTask[], expenses: TripExpense
   lines.push(`Regresso;${trip.data_regresso}`);
   lines.push(`Tipo;${trip.tipo}`);
   lines.push(`Viajantes;${members.length}`);
-  lines.push(`Orçamento;${trip.orcamento_total}€`);
+  lines.push(`Moeda;${APP_CURRENCY_CODE}`);
+  lines.push(`Orçamento;${formatAOA(trip.orcamento_total)}`);
   lines.push('');
   lines.push('GASTOS');
-  lines.push('Categoria;Descrição;Valor;Data');
-  expenses.forEach(e => lines.push(`${e.categoria};${e.descricao};${e.valor}€;${e.data}`));
+  lines.push(`Categoria;Descrição;Valor (${APP_CURRENCY_CODE});Data`);
+  expenses.forEach(e => lines.push(`${e.categoria};${e.descricao};${formatAOA(e.valor)};${e.data}`));
   const total = expenses.reduce((s, e) => s + e.valor, 0);
-  lines.push(`TOTAL;;;${total}€`);
+  lines.push(`TOTAL;;;${formatAOA(total)}`);
   lines.push('');
   lines.push('DOCUMENTOS');
   lines.push('Nome;Tipo;Status');
@@ -641,9 +787,9 @@ export function exportToCSV(trip: Trip, tasks: TripTask[], expenses: TripExpense
   lines.push('DIVISÃO DE DESPESAS');
   const perUser: Record<number, number> = {};
   expenses.forEach(e => { perUser[e.user_id] = (perUser[e.user_id] || 0) + e.valor; });
-  Object.entries(perUser).forEach(([uid, v]) => lines.push(`Utilizador ${uid};${v}€`));
+  Object.entries(perUser).forEach(([uid, v]) => lines.push(`Utilizador ${uid};${formatAOA(v)}`));
   if (members.length > 0) {
-    lines.push(`Por pessoa (total/${members.length});${(total / members.length).toFixed(2)}€`);
+    lines.push(`Por pessoa (total/${members.length});${formatAOA(total / members.length)}`);
   }
   return lines.join('\n');
 }
